@@ -1,0 +1,295 @@
+#!/bin/zsh
+# remote-agent.sh — Mac B (target). Makes the user's real Chrome drivable over CDP,
+# silently, on 127.0.0.1 (CDP never leaves this machine — the agent does).
+#
+#   ./remote-agent.sh setup     one-time: LaunchAgents (Chrome w/ flags + status sidecar)
+#   ./remote-agent.sh status    one-liner state (chrome, flag, port, idle)
+#   ./remote-agent.sh check     preflight + port (cheap)
+#   ./remote-agent.sh down      bootout the LaunchAgents (chrome keeps running as-is)
+#
+# The network side (VM API, headless agent) is agentd.sh — this script only owns Chrome.
+#
+# Exit codes: 0 ok · 1 preflight fail · 2 work fail. Last line = RESULT: OK/FAIL/NEEDS_...
+# The ONLY visible moment: Chrome restart (only when the flag/port is missing, and only
+# when the user has been idle ≥ IDLE_MIN) — everything else is background.
+
+set -uo pipefail
+cd "$(dirname "$0")"
+source ./conf
+
+LOG="$HOME/chrome-remote-agent.log"
+LOCK="/tmp/chrome-remote-agent.lock"
+
+log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
+die() { log "RESULT: FAIL step=$1 reason=$2"; exit ${3:-2}; }
+check_line() { if [ "$1" = ok ]; then log "CHECK: $2 ok"; else log "FAIL: $2 $3"; return 1; fi; }
+
+# ---------- lock ----------
+acquire_lock() {
+  if ! mkdir "$LOCK" 2>/dev/null; then
+    if [ -f "$LOCK/pid" ] && ! kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+      rm -rf "$LOCK" && mkdir "$LOCK" 2>/dev/null || die lock "stale lock could not be taken"
+    else
+      die lock "another run in progress" 1
+    fi
+  fi
+  echo $$ > "$LOCK/pid"
+  trap 'rm -rf "$LOCK"' EXIT
+}
+
+# ---------- preflight ----------
+preflight() {
+  local fail=0
+  check_line "$(command -v python3 >/dev/null 2>&1 && echo ok || echo no)" python3 "not found" || fail=1
+  check_line "$([ -d "$CHROME_APP" ] && echo ok || echo no)" "Chrome.app at $CHROME_APP" "not found" || fail=1
+  check_line "$(command -v ioreg >/dev/null 2>&1 && echo ok || echo no)" ioreg "not found" || fail=1
+  check_line "$(command -v launchctl >/dev/null 2>&1 && echo ok || echo no)" launchctl "not found" || fail=1
+  check_line "$(command -v curl >/dev/null 2>&1 && echo ok || echo no)" curl "not found (agentd needs it)" || fail=1
+  check_line "$(command -v rsync >/dev/null 2>&1 && echo ok || echo no)" rsync "not found (profile copy needs it)" || fail=1
+  if [ -z "${NODE_TOKEN:-}" ]; then
+    log "WARN: NODE_TOKEN empty — agentd cannot poll the VM until conf is fixed"
+  fi
+  return $fail
+}
+
+# ---------- chrome helpers ----------
+chrome_main_pids() {
+  for p in $(pgrep -x "Google Chrome" 2>/dev/null); do
+    ps -o command= -p "$p" 2>/dev/null | grep -q -- "--type=" || echo "$p"
+  done
+}
+
+chrome_has_flag() {
+  local pids; pids=$(chrome_main_pids)
+  [ -z "$pids" ] && return 1
+  for p in $=pids; do
+    ps -o command= -p "$p" | grep -q -- "--remote-debugging-port=" && return 0
+  done
+  return 1
+}
+
+port_up() { curl -s --max-time 3 "http://127.0.0.1:$CDP_PORT/json/version" | grep -q Browser; }
+
+idle_secs() {
+  ioreg -c IOHIDSystem 2>/dev/null | awk '/HIDIdleTime/ {print int($NF/1000000000); exit}'
+}
+
+wait_for_idle() {
+  local waited=0
+  while true; do
+    local idle; idle=$(idle_secs)
+    if [ "${idle:-0}" -ge "$IDLE_MIN" ]; then log "user idle ${idle}s — safe to act"; return 0; fi
+    if [ "$waited" -ge "$WAIT_MAX" ]; then return 1; fi
+    log "user active (idle=${idle}s < ${IDLE_MIN}) — waiting … ($((waited+15))s/${WAIT_MAX}s)"
+    sleep 15; waited=$((waited+15))
+  done
+}
+
+arm_chrome_agent() {
+  launchctl bootout "gui/$(id -u)/com.user.chrome.debug" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.chrome.debug.plist" \
+    || die launchd "bootstrap chrome agent failed"
+}
+
+kill_current_chrome() {
+  local pids; pids=$(chrome_main_pids)
+  [ -z "$pids" ] && { log "no Chrome running — launchd will start the flagged one"; return 0; }
+  log "asking current Chrome to quit (SIGTERM, session is saved)…"
+  for p in $=pids; do kill -TERM "$p" 2>/dev/null || true; done
+  local i=0
+  while [ "$(chrome_main_pids)" != "" ] && [ $i -lt 12 ]; do sleep 1; i=$((i+1)); done
+  if [ "$(chrome_main_pids)" != "" ]; then
+    for p in $=pids; do kill -KILL "$p" 2>/dev/null || true; done
+    sleep 1
+  fi
+  [ "$(chrome_main_pids)" = "" ] || die chrome-quit "Chrome still running after SIGTERM+KILL — close it manually, then re-run"
+}
+
+copy_profile() {
+  # Chrome 136+ needs a non-default --user-data-dir; make the one-time copy while Chrome is quit.
+  if [ -d "$CHROME_PROFILE_DIR" ]; then
+    log "profile copy already present ($CHROME_PROFILE_DIR) — skipping rsync"
+    return 0
+  fi
+  local src="$HOME/Library/Application Support/Google/Chrome"
+  [ -d "$src" ] || die profile "real profile dir not found: $src"
+  log "copying profile (one-time, may take a few minutes) -> $CHROME_PROFILE_DIR"
+  rsync -a "$src/" "$CHROME_PROFILE_DIR/" || die profile-copy "rsync failed — see log"
+  rm -f "$CHROME_PROFILE_DIR"/Singleton* 2>/dev/null
+  log "profile copy done ($(du -sh "$CHROME_PROFILE_DIR" 2>/dev/null | cut -f1))"
+}
+
+wait_port() {
+  local i=0
+  while ! port_up && [ $i -lt 45 ]; do sleep 1; i=$((i+1)); done
+  port_up
+}
+
+install_agents() {
+  mkdir -p "$HOME/Library/LaunchAgents"
+  log "installing chrome-launcher.sh (flagged Chrome wrapper for launchd)"
+  # The agent runs this wrapper, NOT Chrome directly: Chrome flags are read at LAUNCH only,
+  # and while the user's Chrome is running, a second instance would forward+exit and make
+  # KeepAlive churn every ~3s. The wrapper idles until the user's Chrome exits, then execs
+  # a flagged instance (so the port always comes back after any quit/crash/reboot).
+  cat > "$PWD/chrome-launcher.sh" <<LAUNCHER
+#!/bin/zsh
+# chrome-launcher.sh — LaunchAgent com.user.chrome.debug entry (generated by remote-agent.sh)
+CHROME="$CHROME_APP/Contents/MacOS/Google Chrome"
+FLAGS="$CHROME_FLAGS"
+
+chrome_for_default_profile() {
+  local p line
+  for p in \$(pgrep -x "Google Chrome" 2>/dev/null); do
+    line=\$(ps -o command= -p "\$p" 2>/dev/null)
+    case "\$line" in *"--type="*) continue ;; esac
+    case "\$line" in
+      *"--user-data-dir="*)
+        case "\$line" in *"--user-data-dir=$HOME/Library/Application Support/Google/Chrome"*) ;; *) continue ;; esac ;;
+    esac
+    return 0
+  done
+  return 1
+}
+
+while chrome_for_default_profile; do sleep 5; done
+exec "\$CHROME" \${=FLAGS}
+LAUNCHER
+  chmod +x "$PWD/chrome-launcher.sh"
+  log "installing LaunchAgent: com.user.chrome.debug (wrapper, KeepAlive)"
+  cat > "$HOME/Library/LaunchAgents/com.user.chrome.debug.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.user.chrome.debug</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/zsh</string>
+    <string>$PWD/chrome-launcher.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>3</integer>
+</dict></plist>
+PLIST
+  log "installing LaunchAgent: status sidecar (port $STATUS_PORT, 127.0.0.1 only)"
+  cat > "$HOME/Library/LaunchAgents/com.user.chromeremote.statusd.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.user.chromeremote.statusd</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/bin/python3</string>
+    <string>$PWD/statusd.py</string>
+    <string>$STATUS_PORT</string>
+  </array>
+  <key>EnvironmentVariables</key><dict>
+    <key>CDP_PORT</key><string>$CDP_PORT</string>
+    <key>STATUS_PORT</key><string>$STATUS_PORT</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>5</integer>
+  <key>StandardOutPath</key><string>$HOME/chrome-remote-statusd.log</string>
+  <key>StandardErrorPath</key><string>$HOME/chrome-remote-statusd.log</string>
+</dict></plist>
+PLIST
+  launchctl bootout "gui/$(id -u)/com.user.chromeremote.statusd" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.chromeremote.statusd.plist" \
+    || die launchd "bootstrap statusd failed"
+  log "installing LaunchAgent: agentd poller (silent job runner for the VM agent API)"
+  cat > "$HOME/Library/LaunchAgents/com.user.chromeremote.agentd.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.user.chromeremote.agentd</string>
+  <key>ProgramArguments</key><array>
+    <string>/bin/zsh</string>
+    <string>$PWD/agentd.sh</string>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>$HOME/chrome-remote-agentd.log</string>
+  <key>StandardErrorPath</key><string>$HOME/chrome-remote-agentd.log</string>
+</dict></plist>
+PLIST
+  launchctl bootout "gui/$(id -u)/com.user.chromeremote.agentd" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.chromeremote.agentd.plist" \
+    || die launchd "bootstrap agentd failed"
+}
+
+# ---------- commands ----------
+cmd_arm() {
+  # LAZY arm: no idle wait, no kill, no restart, nothing user-visible.
+  # Copies the profile live (read-only — the proven collect.sh method), installs
+  # the wrapper (idles while the user's Chrome runs) + statusd + agentd poller.
+  # The flagged CDP Chrome appears at the NEXT NATURAL Chrome quit.
+  log "=== lazy arm start (nothing user-visible) ==="
+  [ -d "$CHROME_APP" ] || { log "RESULT: FAIL chrome=$CHROME_APP not found"; exit 1; }
+  copy_profile
+  install_agents
+  arm_chrome_agent
+  log "armed: CDP Chrome will appear at the next natural Chrome quit"
+  log "RESULT: OK armed-lazy node=$NODE cdp=$CDP_PORT status=$STATUS_PORT host=$(hostname)"
+}
+
+cmd_setup() {
+  log "=== setup start ==="
+  preflight || die preflight "see CHECK/FAIL lines above" 1
+  install_agents
+  if port_up && chrome_has_flag; then
+    log "Chrome already running with the flag — arming launchd agent (wrapper idles while Chrome runs)"
+    arm_chrome_agent
+  else
+    wait_for_idle || die idle "user stayed active for ${WAIT_MAX}s — rerun later (or raise WAIT_MAX)"
+    kill_current_chrome
+    copy_profile
+    arm_chrome_agent
+    if ! wait_port; then
+      log "launchd did not start Chrome — starting manually (background)"
+      open -g -n -a "$CHROME_APP" --args ${=CHROME_FLAGS} 2>/dev/null || \
+        "$CHROME_APP/Contents/MacOS/Google Chrome" ${=CHROME_FLAGS} >/dev/null 2>&1 &
+      wait_port || die chrome-relaunch "port $CDP_PORT not up after 90s — see ~/chrome-remote-agent.log"
+    fi
+    chrome_has_flag || die chrome-flags "Chrome running but WITHOUT the debug flag"
+    log "Chrome up with flags, port $CDP_PORT alive"
+  fi
+  log "RESULT: OK node=$NODE cdp=$CDP_PORT status=$STATUS_PORT host=$(hostname)"
+}
+
+cmd_status() {
+  local chrome_pid flag port idle
+  chrome_pid=$(chrome_main_pids | head -1)
+  flag=$({ chrome_has_flag && echo yes } || echo no)
+  port=$({ port_up && echo up } || echo down)
+  idle=$(idle_secs)
+  log "STATUS: chrome_pid=${chrome_pid:-none} flag=$flag port=$port idle=${idle}s"
+  log "RESULT: OK status=reported"
+}
+
+cmd_check() {
+  local fail=0
+  preflight || fail=1
+  check_line "$({ port_up && echo ok } || echo no)" "cdp port $CDP_PORT" "down — Chrome not running with flag?" || fail=1
+  check_line "$( [ "$fail" = 0 ] && echo ok || echo no )" overall
+  if [ $fail = 0 ]; then log "RESULT: OK check=pass"; else log "RESULT: FAIL check=see lines above"; exit 1; fi
+}
+
+cmd_down() {
+  launchctl bootout "gui/$(id -u)/com.user.chromeremote.statusd" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/com.user.chrome.debug" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/com.user.chromeremote.agentd" 2>/dev/null || true
+  log "RESULT: OK down (Chrome left running; plists kept on disk — re-run setup to re-arm)"
+}
+
+# ---------- main ----------
+CMD="${1:-status}"
+acquire_lock
+case "$CMD" in
+  setup)   cmd_setup ;;
+  arm)     cmd_arm ;;
+  status)  cmd_status ;;
+  check)   cmd_check ;;
+  down)    cmd_down ;;
+  *) log "RESULT: FAIL cmd=unknown (setup|status|check|down)"; exit 1 ;;
+esac

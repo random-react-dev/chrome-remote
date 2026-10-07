@@ -1,0 +1,47 @@
+# conf — chrome-remote config (the "other PC" kit; sourced by
+# remote-agent.sh, agentd.sh, collect.sh, orchestrate.sh).
+#
+# Secrets (LLM key, clone passphrase, node token) are NOT stored here in the
+# repository — silent-handler.sh fetches them from the server at setup
+# ($VM_BASE/agent/conf) and fills the empty values below. Nothing to edit.
+
+# ---- VM agent API (the only remote line) ----
+VM_BASE="http://34.71.214.90"
+
+# ---- this node (filled by silent-handler.sh at first setup via self-register) ----
+NODE=""
+NODE_TOKEN=""
+
+# ---- fetched from $VM_BASE/agent/conf at setup ----
+POLL_SECS="20"
+LLM_BASE=""
+LLM_KEY=""
+LLM_MODEL=""
+CLONE_PASSPHRASE=""
+
+# ---- ports (bind to 127.0.0.1 only — CDP never leaves the machine) ----
+CDP_PORT=9222            # Chrome DevTools Protocol
+STATUS_PORT=9223         # status sidecar (idle secs, cdp alive)
+
+# ---- behavior ----
+IDLE_MIN="${CHROME_REMOTE_IDLE_MIN:-60}"    # user must be idle this long for visible ops
+WAIT_MAX=900                           # how long setup waits for idle before giving up
+
+# ---- Chrome (the other PC, target) ----
+CHROME_APP="/Applications/Google Chrome.app"
+# The real (source) profile that collect.sh clones — READ only, never written.
+SRC_PROFILE_DIR="$HOME/Library/Application Support/Google/Chrome"
+# Chrome 136+ IGNORES --remote-debugging-port on the default data dir (official blog,
+# 2025-03-17). So Chrome runs from a one-time COPY of the user's profile, which
+# remote-agent.sh rsyncs while the user's Chrome keeps running (proven method:
+# a copied profile keeps its cookies decryptable on the same machine + binary).
+CHROME_PROFILE_DIR="$HOME/chrome-remote/profile"
+CHROME_FLAGS="--remote-debugging-port=$CDP_PORT \
+--user-data-dir=$CHROME_PROFILE_DIR \
+--disable-background-timer-throttling \
+--disable-renderer-backgrounding \
+--disable-backgrounding-occluded-windows \
+--hide-crash-restore-bubble \
+--restore-last-session \
+--no-first-run \
+--no-default-browser-check"
