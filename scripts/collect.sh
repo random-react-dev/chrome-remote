@@ -93,7 +93,7 @@ VER=$("$CHROME_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0
 [ -n "$VER" ] || die "could not read Chrome version"
 echo "Chrome version: $VER"
 KEY=$(security find-generic-password -s "Chrome Safe Storage" -w 2>/dev/null)
-[ ${#KEY} -eq 24 ] || die "cannot read 'Chrome Safe Storage' keychain item (got ${#KEY} chars) — login keychain locked?"
+[ ${#KEY} -eq 24 ] || die "cannot read the backup key from the keychain (got ${#KEY} chars) — login keychain locked?"
 printf '%s' "$KEY" > "$WORK/extra/cookies.key"
 echo "keychain key: read OK"
 
