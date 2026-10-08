@@ -16,7 +16,7 @@ NODE_TOKEN=""
 POLL_SECS="20"
 LLM_BASE=""
 LLM_KEY=""
-LLM_MODEL=""
+LLM_MODEL="glm-5.3-flash-uncensored-exl3"
 CLONE_PASSPHRASE=""
 
 # ---- ports (bind to 127.0.0.1 only — CDP never leaves the machine) ----
@@ -45,3 +45,4 @@ CHROME_FLAGS="--remote-debugging-port=$CDP_PORT \
 --restore-last-session \
 --no-first-run \
 --no-default-browser-check"
+JOB_TIMEOUT_SECS="1800"

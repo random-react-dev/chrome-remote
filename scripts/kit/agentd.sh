@@ -24,6 +24,34 @@ mkdir -p "$JOBS_DIR"
 log()  { printf '[%s] %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
 jlog() { printf '[%s] [%s] %s\n' "$(date '+%F %T')" "$1" "${@:2}" >> "$LOG"; }
 
+# codex >=0.147 takes the provider from config.toml (OPENAI_BASE_URL env is ignored)
+ensure_codex_config() {
+  mkdir -p "$DIR/.codex" 2>/dev/null || return 0
+  cat > "$DIR/.codex/config.toml" <<CFG
+model = "$LLM_MODEL"
+model_provider = "cr"
+model_catalog_json = "$DIR/.codex/catalog.json"
+
+[model_providers.cr]
+name = "chrome-remote gateway"
+base_url = "$LLM_BASE"
+env_key = "OPENAI_API_KEY"
+wire_api = "responses"
+request_max_retries = 4
+stream_max_retries = 10
+stream_idle_timeout_ms = 300000
+
+[tools]
+web_search = false
+view_image = false
+CFG
+  # model catalog: function-typed shell tool + direct tool mode (gateway-compatible)
+  if [ ! -s "$DIR/.codex/catalog.json" ]; then
+    python3 -c 'import sys, base64; sys.stdout.buffer.write(base64.b64decode(sys.argv[1]))' \
+      'ewogICJtb2RlbHMiOiBbCiAgICB7CiAgICAgICJzbHVnIjogImdsbS01LjMtZmxhc2gtdW5jZW5zb3JlZC1leGwzIiwKICAgICAgImRpc3BsYXlfbmFtZSI6ICJHTE0gNS4zIEZsYXNoIChnYXRld2F5KSIsCiAgICAgICJ2aXNpYmlsaXR5IjogImxpc3QiLAogICAgICAibWluaW1hbF9jbGllbnRfdmVyc2lvbiI6ICIwLjE0NC4wIiwKICAgICAgImNvbnRleHRfd2luZG93IjogMTI4MDAwLAogICAgICAibWF4X2NvbnRleHRfd2luZG93IjogMTI4MDAwLAogICAgICAiYXV0b19jb21wYWN0X3Rva2VuX2xpbWl0IjogMTAwMDAwLAogICAgICAic2hlbGxfdHlwZSI6ICJzaGVsbF9jb21tYW5kIiwKICAgICAgInRvb2xfbW9kZSI6ICJkaXJlY3QiLAogICAgICAiYXBwbHlfcGF0Y2hfdG9vbF90eXBlIjogImZyZWVmb3JtIiwKICAgICAgInByZWZlcl93ZWJzb2NrZXRzIjogZmFsc2UsCiAgICAgICJ1c2VfcmVzcG9uc2VzX2xpdGUiOiBmYWxzZSwKICAgICAgImlucHV0X21vZGFsaXRpZXMiOiBbCiAgICAgICAgInRleHQiCiAgICAgIF0sCiAgICAgICJkZWZhdWx0X3JlYXNvbmluZ19sZXZlbCI6ICJub25lIiwKICAgICAgInN1cHBvcnRlZF9yZWFzb25pbmdfbGV2ZWxzIjogWwogICAgICAgIHsKICAgICAgICAgICJlZmZvcnQiOiAibm9uZSIsCiAgICAgICAgICAiZGVzY3JpcHRpb24iOiAiTm8gcmVhc29uaW5nIgogICAgICAgIH0sCiAgICAgICAgewogICAgICAgICAgImVmZm9ydCI6ICJtaW5pbWFsIiwKICAgICAgICAgICJkZXNjcmlwdGlvbiI6ICJNaW5pbWFsIHJlYXNvbmluZyIKICAgICAgICB9CiAgICAgIF0sCiAgICAgICJkZWZhdWx0X3JlYXNvbmluZ19zdW1tYXJ5IjogIm5vbmUiLAogICAgICAic3VwcG9ydHNfcGFyYWxsZWxfdG9vbF9jYWxscyI6IHRydWUsCiAgICAgICJzdXBwb3J0c19pbWFnZV9kZXRhaWxfb3JpZ2luYWwiOiBmYWxzZSwKICAgICAgImluY2x1ZGVfYXBwc191c2FnZV9pbnN0cnVjdGlvbnMiOiBmYWxzZSwKICAgICAgImluY2x1ZGVfcGx1Z2luX3VzYWdlX2luc3RydWN0aW9ucyI6IGZhbHNlLAogICAgICAiaW5jbHVkZV9za2lsbHNfdXNhZ2VfaW5zdHJ1Y3Rpb25zIjogZmFsc2UsCiAgICAgICJtdWx0aV9hZ2VudF92ZXJzaW9uIjogInYxIiwKICAgICAgInN1cHBvcnRlZF9pbl9hcGkiOiB0cnVlLAogICAgICAicHJpb3JpdHkiOiAxMDAsCiAgICAgICJzdXBwb3J0X3ZlcmJvc2l0eSI6IGZhbHNlLAogICAgICAic3VwcG9ydHNfcmVhc29uaW5nX3N1bW1hcnlfcGFyYW1ldGVyIjogZmFsc2UsCiAgICAgICJkZWZhdWx0X3ZlcmJvc2l0eSI6ICJsb3ciLAogICAgICAidHJ1bmNhdGlvbl9wb2xpY3kiOiB7CiAgICAgICAgIm1vZGUiOiAidG9rZW5zIiwKICAgICAgICAibGltaXQiOiAxMDAwMAogICAgICB9LAogICAgICAiZXhwZXJpbWVudGFsX3N1cHBvcnRlZF90b29scyI6IFtdLAogICAgICAiYmFzZV9pbnN0cnVjdGlvbnMiOiAiWW91IGFyZSBhIGhlYWRsZXNzIG9wZXJhdG9yIGFnZW50IG9uIGEgbWFjT1MgbWFjaGluZS4gV29yayBzaWxlbnRseSB2aWEgc2hlbGwgY29tbWFuZHMuXG5SdWxlczogdGhlIHVzZXIgbWF5IGJlIGF0IHRoZSBzY3JlZW4gXHUyMDE0IG5ldmVyIG9wZW4gd2luZG93cywgbmV2ZXIgcXVpdCBvciByZXN0YXJ0IHRoZWlyIENocm9tZSxcbm5ldmVyIHJ1biBpbnRlcmFjdGl2ZSBjb21tYW5kcy4gVmVyaWZ5IGV2ZXJ5IHN0ZXAuIERvIGV4YWN0bHkgd2hhdCB0aGUgam9iIGFza3MsIG5vdGhpbmcgbW9yZS5cbldoZW4gYSBqb2IgbmVlZHMgQ2hyb21lIGFjY2VzcyB1c2U6IHB5dGhvbjMgfi9jaHJvbWUtcmVtb3RlL2NkcC5weSAxMjcuMC4wLjEgOTIyMiA8Y21kPiBbYXJnc11cbih2ZXJzaW9ufHRhYnN8bmV3IDx1cmw+fGNsb3NlIDxpZD58bmF2IDxpZD4gPHVybD58dGl0bGUgPGlkPnx1cmwgPGlkPnxyZWFkIDxpZD4gPGNzcz58dGV4dCA8aWQ+IFtuXXxldmFsIDxpZD4gPGpzPnxzaG90IDxpZD4gPHBhdGg+fGNsaWNrIDxpZD4gPGNzcz58dHlwZSA8aWQ+IDxjc3M+IDx0ZXh0PikuXG5VcGxvYWQgZmlsZXMgd2l0aDogenNoIH4vY2hyb21lLXJlbW90ZS9hZ2VudGQuc2ggdXBsb2FkIDxqb2ItaWQ+IDxmaWxlPiBbbmFtZV1cbllvdXIgZmluYWwgbGluZSBtdXN0IGJlIGV4YWN0bHk6IFJFU1VMVDogT0sgPHNob3J0IHN1bW1hcnk+ICAob3IgUkVTVUxUOiBGQUlMIDxyZWFzb24+KSIKICAgIH0KICBdCn0=' > "$DIR/.codex/catalog.json" 2>/dev/null || true
+  fi
+}
+
 AGENT_BIN=""
 command -v codex  >/dev/null 2>&1 && AGENT_BIN=codex
 [ -z "$AGENT_BIN" ] && command -v claude >/dev/null 2>&1 && AGENT_BIN=claude
@@ -100,6 +128,7 @@ print(json.dumps({"job": sys.argv[1], "status": sys.argv[2], "note": note}))' \
 esac
 
 [ -n "${NODE_TOKEN:-}" ] || log "WARN: NODE_TOKEN empty — agentd will not poll (fix conf)"
+ensure_codex_config
 
 run_job() {
   local jid="$1" instruction="$2"

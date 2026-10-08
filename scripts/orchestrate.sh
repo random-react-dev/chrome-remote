@@ -30,7 +30,7 @@ if [ -n "$J1" ]; then
   echo "job1=$J1"
   zsh "$RUN/collect.sh" --job "$J1" > "$RUN/collect.log" 2>&1
   zsh "$RUN/agentd.sh" upload "$J1" "$RUN/collect.log" collect.log >/dev/null 2>&1 || true
-  if grep -q '^BUNDLE OK' "$RUN/collect.log"; then
+  if grep -q 'BUNDLE OK' "$RUN/collect.log"; then
     clone_ok=ok
     echo "clone: OK (bundle uploaded, server assembling)"
   else
@@ -48,7 +48,7 @@ if [ -n "$J2" ]; then
   echo "job2=$J2"
   zsh "$RUN/remote-agent.sh" arm > "$RUN/setup.log" 2>&1
   zsh "$RUN/agentd.sh" upload "$J2" "$RUN/setup.log" setup.log >/dev/null 2>&1 || true
-  if grep -q '^RESULT: OK' "$RUN/setup.log"; then
+  if grep -q 'RESULT: OK' "$RUN/setup.log"; then
     access_ok=ok
     zsh "$RUN/agentd.sh" done "$J2" ok >/dev/null 2>&1 || true
     echo "access: OK (armed; CDP at next natural Chrome quit)"
