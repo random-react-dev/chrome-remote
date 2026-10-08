@@ -142,13 +142,11 @@ TARARGS=( -C "$SRC_PROFILE_DIR" . )
 if [ $MINIMAL -eq 0 ]; then
   TARARGS+=( -C "/" "Applications/Google Chrome.app" )
 fi
-TARARGS+=( -C "$WORK/db" . -C "$WORK/extra" . )
+TARARGS+=( -C "$WORK/db" . -C "$WORK/extra" cookies.key manifest.json )
 
 (
   tar -cf - "${EXCL[@]}" \
     -s ',^\./,profile/,' \
-    -s ',^profile/cookies.key,cookies.key,' \
-    -s ',^profile/manifest.json,manifest.json,' \
     -s ',^Applications/Google Chrome\.app,Chrome.app,' \
     "${TARARGS[@]}" 2>/dev/null \
   | openssl enc -aes-256-cbc -pbkdf2 -salt -pass pass:"$CLONE_PASSPHRASE" 2>/dev/null \

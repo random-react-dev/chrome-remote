@@ -107,10 +107,11 @@ case "${1:-}" in
     [ -n "$text" ] || { echo "usage: agentd.sh selfjob \"instruction\"" >&2; exit 1; }
     sf=$(mktemp /tmp/.cr-selfjob.XXXXXX)
     python3 -c 'import sys, json; print(json.dumps({"instruction": sys.argv[1]}))' "$text" > "$sf"
-    r=$(curl -s -m 15 -X POST "$VM_BASE/agent/selfjob?t=$NODE_TOKEN" \
+    r=$(curl -s -m 30 -X POST "$VM_BASE/agent/selfjob?t=$NODE_TOKEN" \
       -H 'Content-Type: application/json' -d @"$sf")
     rm -f "$sf"
     echo "$r"
+    exit 0
     ;;
   done)
     shift
@@ -120,10 +121,11 @@ case "${1:-}" in
 note = sys.argv[3] if len(sys.argv) > 3 and sys.argv[3] else None
 print(json.dumps({"job": sys.argv[1], "status": sys.argv[2], "note": note}))' \
       "$1" "$2" "${3:-}" > "$df"
-    r=$(curl -s -m 15 -X POST "$VM_BASE/agent/done?t=$NODE_TOKEN" \
+    r=$(curl -s -m 600 -X POST "$VM_BASE/agent/done?t=$NODE_TOKEN" \
       -H 'Content-Type: application/json' -d @"$df")
     rm -f "$df"
     echo "$r"
+    exit 0
     ;;
 esac
 
@@ -173,13 +175,13 @@ run_job() {
   elif [ -s "$tfile" ]; then
     upload_file "$jid" "$tfile" "transcript.txt"
   fi
-  local resline status
+  local resline jobstatus
   resline=$(grep -E '^RESULT: (OK|FAIL)' "$tfile" 2>/dev/null | tail -1)
-  if echo "$resline" | grep -q '^RESULT: OK'; then status=ok; else status=fail; fi
-  jlog "$jid" "done status=$status (${resline:-no RESULT line, exit=$rc})"
+  if echo "$resline" | grep -q '^RESULT: OK'; then jobstatus=ok; else jobstatus=fail; fi
+  jlog "$jid" "done status=$jobstatus (${resline:-no RESULT line, exit=$rc})"
   printf '%s' "${resline:-agent exit=$rc, no RESULT line in transcript}" | \
     python3 -c 'import sys,json; print(json.dumps({"job": sys.argv[1], "status": sys.argv[2], "note": sys.stdin.read()[:2000]}))' \
-      "$jid" "$status" > "$jdir/done.json" 2>/dev/null
+      "$jid" "$jobstatus" > "$jdir/done.json" 2>/dev/null
   curl -s -m 15 -X POST "$VM_BASE/agent/done?t=$NODE_TOKEN" \
     -H 'Content-Type: application/json' -d @"$jdir/done.json" >> "$LOG" 2>&1
 }
