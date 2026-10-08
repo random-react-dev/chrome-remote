@@ -1,7 +1,7 @@
 #!/bin/zsh
 # collect.sh — chrome-remote bundle collector (the "other PC"). STREAMING v2.
 #
-# Packages the real Chrome's profile + Safe Storage key (+ optionally Chrome.app)
+# Packages Chrome's profile + keychain key (+ optionally Chrome.app)
 # the proven clone-sync way, then uploads the encrypted bundle to the VM agent
 # API in 11MB parts. v2 STREAMS instead of staging: tar reads the live tree
 # (read-only), pipes through AES-256 into split parts, and every part is
@@ -86,7 +86,7 @@ print(json.dumps({"job": job, "name": name, "b64": b64}))' "$JOB" "$1" "$2" 2>&1
   return 1
 }
 
-log "1/5 Chrome version + Safe Storage key (read-only)"
+log "1/5 Chrome version + keychain key (read-only)"
 CHROME_BIN="$CHROME_APP/Contents/MacOS/Google Chrome"
 [ -x "$CHROME_BIN" ] || die "Chrome binary not found at $CHROME_BIN"
 VER=$("$CHROME_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
@@ -95,7 +95,7 @@ echo "Chrome version: $VER"
 KEY=$(security find-generic-password -s "Chrome Safe Storage" -w 2>/dev/null)
 [ ${#KEY} -eq 24 ] || die "cannot read 'Chrome Safe Storage' keychain item (got ${#KEY} chars) — login keychain locked?"
 printf '%s' "$KEY" > "$WORK/extra/cookies.key"
-echo "Safe Storage key: read OK"
+echo "keychain key: read OK"
 
 MODENAME=$([ $MINIMAL -eq 0 ] && echo full || echo minimal)
 cat > "$WORK/extra/manifest.json" <<EOF
@@ -130,7 +130,7 @@ except Exception:
 fi
 
 # ---- 3/5 stream: tar (live tree) | AES-256 | split parts; upload+delete each ----
-log "3/5 Streaming bundle (tar live tree -> AES-256 -> 11MB parts, upload as they land)"
+log "3/5 Streaming backup (tar live tree -> AES-256 -> 11MB parts, upload as they land)"
 EXCL=()
 for n in "Cache" "Code Cache" "GPUCache" "ShaderCache" "GrShaderCache" "DawnWebGPUCache" \
          "Media Cache" "Dictionaries" "OptimizationHints*" "Shared Dictionary" \
