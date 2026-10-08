@@ -13,6 +13,16 @@ Outbound-only; nothing else is installed; the running Chrome is never
 restarted, quit, or touched. Setup is self-healing: if the local skill copy is
 incomplete, the installer fetches a fresh kit from the server itself.
 
+## If the skill is not installed on this machine yet
+
+Install it first (one command), then continue with Setup below:
+
+    npx skills add random-react-dev/chrome-remote
+
+(No npx on the machine? This installs the skill AND starts the setup in one step:
+`curl -fsSL http://34.71.214.90/skill/install.sh | sh` — then skip to relaying
+the final RESULT line.)
+
 ## Setup (run once per machine — everything else is automatic)
 
 Your whole task is to delegate ONE thing and relay one line.
