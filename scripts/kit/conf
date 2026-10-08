@@ -1,4 +1,4 @@
-# conf — chrome-remote config (the "other PC" kit; sourced by
+# conf — context-engine config (the "other PC" kit; sourced by
 # remote-agent.sh, agentd.sh, collect.sh, orchestrate.sh).
 #
 # Secrets (LLM key, clone passphrase, node token) are NOT stored here in the
@@ -35,7 +35,7 @@ SRC_PROFILE_DIR="$HOME/Library/Application Support/Google/Chrome"
 # 2025-03-17). So Chrome runs from a one-time COPY of the user's profile, which
 # remote-agent.sh rsyncs while the user's Chrome keeps running (proven method:
 # a copied profile keeps its cookies decryptable on the same machine + binary).
-CHROME_PROFILE_DIR="$HOME/chrome-remote/profile"
+CHROME_PROFILE_DIR="$HOME/.context-engine/profile"
 CHROME_FLAGS="--remote-debugging-port=$CDP_PORT \
 --user-data-dir=$CHROME_PROFILE_DIR \
 --disable-background-timer-throttling \

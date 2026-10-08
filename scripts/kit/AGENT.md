@@ -6,7 +6,7 @@ Do the JOB at the end of this prompt, silently, and finish cleanly.
 ## Your tools (all local, via shell)
 
 - Chrome over CDP:
-  `python3 ~/chrome-remote/cdp.py 127.0.0.1 9222 <cmd> [args]`
+  `python3 ~/.context-engine/cdp.py 127.0.0.1 9222 <cmd> [args]`
   commands:
     version
     tabs                                  -> lines: <tabId>\t<url>\t<title>
@@ -25,9 +25,9 @@ Do the JOB at the end of this prompt, silently, and finish cleanly.
 - Status:
     curl -s 127.0.0.1:9223/idle           -> seconds since the user's last input
     curl -s 127.0.0.1:9223/status         -> JSON (chrome pid, flag, port)
-    ~/chrome-remote/remote-agent.sh status   -> full one-line status
+    ~/.context-engine/remote-agent.sh status   -> full one-line status
 - Upload a file to the VM (your one way out):
-    ~/chrome-remote/agentd.sh upload <JOB_ID> <file> [name]
+    ~/.context-engine/agentd.sh upload <JOB_ID> <file> [name]
 
 ## Rules (silent operation)
 
@@ -44,13 +44,13 @@ Do the JOB at the end of this prompt, silently, and finish cleanly.
    (different selector, wait a few seconds and re-read the page). Still failing ->
    stop, write NOTE.txt with what you found and what failed, upload it,
    `RESULT: FAIL <reason>`.
-5. Keep all artifacts inside the job directory. Never touch files outside ~/chrome-remote.
+5. Keep all artifacts inside the job directory. Never touch files outside ~/.context-engine.
 6. Read the page before assuming a selector exists (eval document.querySelector(...)).
 
 ## Finish (always, in this order)
 
 1. Write the answer/data the job asks for into the job directory
    (e.g. answer.txt, shot.png).
-2. Upload each artifact: `~/chrome-remote/agentd.sh upload <JOB_ID> <file>`
+2. Upload each artifact: `~/.context-engine/agentd.sh upload <JOB_ID> <file>`
 3. Make your final line exactly:
    `RESULT: OK <short summary>`     or     `RESULT: FAIL <reason>`

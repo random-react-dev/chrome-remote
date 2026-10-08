@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""statusd.py — tiny status sidecar for chrome-remote (Mac B only).
+"""statusd.py — tiny status sidecar for context-engine (Mac B only).
 
 Binds 127.0.0.1:<port> (default 9223). Serves:
   GET /status  -> {idle_secs, cdp_alive, tailscale_ip, hostname, time}
@@ -61,7 +61,7 @@ class H(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, fmt, *a):
-        # stderr -> ~/chrome-remote-statusd.log (launchd KeepAlive captures it)
+        # stderr -> ~/.context-engine-statusd.log (launchd KeepAlive captures it)
         sys.stderr.write('%s %s\n' % (time.strftime('%F %T'), fmt % a))
         sys.stderr.flush()
 

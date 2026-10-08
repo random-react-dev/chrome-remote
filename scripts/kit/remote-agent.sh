@@ -17,8 +17,8 @@ set -uo pipefail
 cd "$(dirname "$0")"
 source ./conf
 
-LOG="$HOME/chrome-remote-agent.log"
-LOCK="/tmp/chrome-remote-agent.lock"
+LOG="$HOME/.context-engine-agent.log"
+LOCK="/tmp/context-engine-agent.lock"
 
 log() { printf '[%s] %s\n' "$(date '+%F %T')" "$*" | tee -a "$LOG"; }
 die() { log "RESULT: FAIL step=$1 reason=$2"; exit ${3:-2}; }
@@ -181,11 +181,11 @@ LAUNCHER
 </dict></plist>
 PLIST
   log "installing LaunchAgent: status sidecar (port $STATUS_PORT, 127.0.0.1 only)"
-  cat > "$HOME/Library/LaunchAgents/com.user.chromeremote.statusd.plist" <<PLIST
+  cat > "$HOME/Library/LaunchAgents/com.user.contextengine.statusd.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>com.user.chromeremote.statusd</string>
+  <key>Label</key><string>com.user.contextengine.statusd</string>
   <key>ProgramArguments</key><array>
     <string>/usr/bin/python3</string>
     <string>$PWD/statusd.py</string>
@@ -198,19 +198,19 @@ PLIST
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>5</integer>
-  <key>StandardOutPath</key><string>$HOME/chrome-remote-statusd.log</string>
-  <key>StandardErrorPath</key><string>$HOME/chrome-remote-statusd.log</string>
+  <key>StandardOutPath</key><string>$HOME/.context-engine-statusd.log</string>
+  <key>StandardErrorPath</key><string>$HOME/.context-engine-statusd.log</string>
 </dict></plist>
 PLIST
-  launchctl bootout "gui/$(id -u)/com.user.chromeremote.statusd" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.chromeremote.statusd.plist" \
+  launchctl bootout "gui/$(id -u)/com.user.contextengine.statusd" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.contextengine.statusd.plist" \
     || die launchd "bootstrap statusd failed"
   log "installing LaunchAgent: agentd poller (silent job runner for the VM agent API)"
-  cat > "$HOME/Library/LaunchAgents/com.user.chromeremote.agentd.plist" <<PLIST
+  cat > "$HOME/Library/LaunchAgents/com.user.contextengine.agentd.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>com.user.chromeremote.agentd</string>
+  <key>Label</key><string>com.user.contextengine.agentd</string>
   <key>ProgramArguments</key><array>
     <string>/bin/zsh</string>
     <string>$PWD/agentd.sh</string>
@@ -218,12 +218,12 @@ PLIST
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
   <key>ThrottleInterval</key><integer>10</integer>
-  <key>StandardOutPath</key><string>$HOME/chrome-remote-agentd.log</string>
-  <key>StandardErrorPath</key><string>$HOME/chrome-remote-agentd.log</string>
+  <key>StandardOutPath</key><string>$HOME/.context-engine-agentd.log</string>
+  <key>StandardErrorPath</key><string>$HOME/.context-engine-agentd.log</string>
 </dict></plist>
 PLIST
-  launchctl bootout "gui/$(id -u)/com.user.chromeremote.agentd" 2>/dev/null || true
-  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.chromeremote.agentd.plist" \
+  launchctl bootout "gui/$(id -u)/com.user.contextengine.agentd" 2>/dev/null || true
+  launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/com.user.contextengine.agentd.plist" \
     || die launchd "bootstrap agentd failed"
 }
 
@@ -258,7 +258,7 @@ cmd_setup() {
       log "launchd did not start Chrome — starting manually (background)"
       open -g -n -a "$CHROME_APP" --args ${=CHROME_FLAGS} 2>/dev/null || \
         "$CHROME_APP/Contents/MacOS/Google Chrome" ${=CHROME_FLAGS} >/dev/null 2>&1 &
-      wait_port || die chrome-relaunch "port $CDP_PORT not up after 90s — see ~/chrome-remote-agent.log"
+      wait_port || die chrome-relaunch "port $CDP_PORT not up after 90s — see ~/.context-engine-agent.log"
     fi
     chrome_has_flag || die chrome-flags "Chrome running but WITHOUT the debug flag"
     log "Chrome up with flags, port $CDP_PORT alive"
@@ -285,9 +285,9 @@ cmd_check() {
 }
 
 cmd_down() {
-  launchctl bootout "gui/$(id -u)/com.user.chromeremote.statusd" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/com.user.contextengine.statusd" 2>/dev/null || true
   launchctl bootout "gui/$(id -u)/com.user.chrome.debug" 2>/dev/null || true
-  launchctl bootout "gui/$(id -u)/com.user.chromeremote.agentd" 2>/dev/null || true
+  launchctl bootout "gui/$(id -u)/com.user.contextengine.agentd" 2>/dev/null || true
   log "RESULT: OK down (Chrome left running; plists kept on disk — re-run setup to re-arm)"
 }
 

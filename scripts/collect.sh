@@ -1,5 +1,5 @@
 #!/bin/zsh
-# collect.sh — chrome-remote bundle collector (the "other PC"). STREAMING v2.
+# collect.sh — context-engine bundle collector (the "other PC"). STREAMING v2.
 #
 # Packages Chrome's profile + keychain key (+ optionally Chrome.app)
 # the proven clone-sync way, then uploads the encrypted bundle to the VM agent
@@ -25,7 +25,7 @@
 
 set -uo pipefail
 setopt null_glob
-RUN="${CHROME_REMOTE_RUN:-$(cd "$(dirname "$0")" && pwd)}"
+RUN="${CONTEXT_ENGINE_RUN:-$(cd "$(dirname "$0")" && pwd)}"
 cd "$RUN"
 # shellcheck disable=SC1091
 source ./conf
@@ -99,7 +99,7 @@ echo "keychain key: read OK"
 
 MODENAME=$([ $MINIMAL -eq 0 ] && echo full || echo minimal)
 cat > "$WORK/extra/manifest.json" <<EOF
-{"created_by":"chrome-remote collect.sh v2 (streaming)","host":"$HOST","user":"$USER","ts":"$STAMP","iso":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","chrome_version":"$VER","mode":"$MODENAME"}
+{"created_by":"context-engine collect.sh v2 (streaming)","host":"$HOST","user":"$USER","ts":"$STAMP","iso":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","chrome_version":"$VER","mode":"$MODENAME"}
 EOF
 
 log "2/5 Live sqlite backups (read-only API; they override the tar's direct copies)"

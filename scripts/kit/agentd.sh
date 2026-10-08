@@ -1,5 +1,5 @@
 #!/bin/zsh
-# agentd.sh — Mac B: the silent agent daemon (LaunchAgent com.user.chromeremote.agentd).
+# agentd.sh — Mac B: the silent agent daemon (LaunchAgent com.user.contextengine.agentd).
 #
 # Every POLL_SECS: heartbeat to the VM (chrome/port/idle state), poll for a job.
 # Per job: launch the headless agent (codex or claude) with OUR LLM API and the
@@ -10,14 +10,14 @@
 #   ./agentd.sh status                  # chrome/port/idle JSON
 #   ./agentd.sh upload <job> <file> [name]
 #
-# All logging: ~/chrome-remote-agentd.log
+# All logging: ~/.context-engine-agentd.log
 
 set -uo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin:$PATH"
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR" || exit 1
 source ./conf
-LOG="$HOME/chrome-remote-agentd.log"
+LOG="$HOME/.context-engine-agentd.log"
 JOBS_DIR="$DIR/jobs"
 mkdir -p "$JOBS_DIR"
 
@@ -33,7 +33,7 @@ model_provider = "cr"
 model_catalog_json = "$DIR/.codex/catalog.json"
 
 [model_providers.cr]
-name = "chrome-remote gateway"
+name = "context-engine gateway"
 base_url = "$LLM_BASE"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"

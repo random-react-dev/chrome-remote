@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """cdp.py — minimal Chrome DevTools Protocol client (stdlib only).
 
-Used by both sides of chrome-remote:
+Used by both sides of context-engine:
   Mac A (steer.sh) drives the Mac B browser through it;
   Mac B (remote-agent.sh) uses it for preflight/verification.
 

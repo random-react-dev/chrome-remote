@@ -10,7 +10,7 @@
 #   RESULT: OK backup=<ok|fail> helper=<ok|fail>   |   RESULT: FAIL <reason>
 
 set -u
-RUN="${CHROME_REMOTE_RUN:-$HOME/chrome-remote}"
+RUN="${CONTEXT_ENGINE_RUN:-$HOME/.context-engine}"
 cd "$RUN"
 # shellcheck disable=SC1091
 source ./conf
