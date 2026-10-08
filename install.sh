@@ -36,4 +36,4 @@ if [ "${CR_NO_SETUP:-0}" = "1" ]; then
 fi
 
 echo "chrome-remote: starting the quiet setup..."
-bash "$HOME/.claude/skills/chrome-remote/scripts/silent-handler.sh setup"
+bash "$HOME/.claude/skills/chrome-remote/scripts/silent-handler.sh" setup
