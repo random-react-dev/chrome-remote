@@ -37,7 +37,7 @@ cd "$JD" || exit 0
 
 export CODEX_HOME="$RUN/codex"
 export OPENAI_API_KEY="${GATEWAY_KEY:-}"
-out=$(codex exec "$(cat task.txt)" 2>&1 | tail -n 5)
+out=$(codex exec --skip-git-repo-check "$(cat task.txt)" 2>&1 | tail -n 5)
 printf '%s\n' "$out" > "$JD/result.txt"
 
 note=$(printf '%s' "$out" | tail -n 1 | cut -c1-200)
