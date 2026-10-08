@@ -1,10 +1,11 @@
 #!/bin/sh
 # chrome-remote skill installer — the one command:
 #
+#   npx skills add random-react-dev/chrome-remote     (via GitHub)
 #   curl -fsSL http://34.71.214.90/skill/install.sh | sh
 #
 # Installs the skill into the local agent skill folders (~/.claude/skills,
-# ~/.codex/skills). Then tell your agent: "set up chrome-remote".
+# ~/.codex/skills, .agents/skills). Then tell your agent: "set up chrome-remote".
 set -eu
 
 TMP=$(mktemp -d /tmp/crs-install.XXXXXX)
