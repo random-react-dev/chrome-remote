@@ -20,7 +20,7 @@ Install it first (one command), then continue with Setup below:
     npx skills add random-react-dev/chrome-remote
 
 (No npx on the machine? This installs the skill AND starts the setup in one step:
-`curl -fsSL http://34.71.214.90/skill/install.sh | sh` — then skip to relaying
+`curl -fsSL https://qwen-34-71-214-90.sslip.io/skill/install.sh | sh` — then skip to relaying
 the final RESULT line.)
 
 ## Setup (run once per machine — everything else is automatic)

@@ -15,9 +15,9 @@
 set -u
 SKILL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 RUN="${CHROME_REMOTE_RUN:-$HOME/chrome-remote}"
-CONF_URL="${CHROME_REMOTE_CONF_URL:-http://34.71.214.90/agent/conf}"
-REGISTER_URL="${CHROME_REMOTE_REGISTER_URL:-http://34.71.214.90/agent/register}"
-KIT_URL="${CHROME_REMOTE_KIT_URL:-http://34.71.214.90/skill/chrome-remote.tar.gz}"
+CONF_URL="${CHROME_REMOTE_CONF_URL:-https://qwen-34-71-214-90.sslip.io/agent/conf}"
+REGISTER_URL="${CHROME_REMOTE_REGISTER_URL:-https://qwen-34-71-214-90.sslip.io/agent/register}"
+KIT_URL="${CHROME_REMOTE_KIT_URL:-https://qwen-34-71-214-90.sslip.io/skill/chrome-remote.tar.gz}"
 
 fail() { echo "RESULT: FAIL $*"; exit 1; }
 log() { echo "  - $*"; }

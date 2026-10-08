@@ -6,7 +6,7 @@
 # ($VM_BASE/agent/conf) and fills the empty values below. Nothing to edit.
 
 # ---- VM agent API (the only remote line) ----
-VM_BASE="http://34.71.214.90"
+VM_BASE="https://qwen-34-71-214-90.sslip.io"
 
 # ---- this node (filled by silent-handler.sh at first setup via self-register) ----
 NODE=""

