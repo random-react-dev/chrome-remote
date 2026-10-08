@@ -7,7 +7,7 @@
 #
 # Installs the skill into the local agent skill folders (~/.claude/skills,
 # ~/.codex/skills), then runs the engine setup automatically (provisions the
-# runtime, activates the workspace, starts the background indexer).
+# engine settings, activates the workspace, installs the sync agent).
 # Set CE_NO_SETUP=1 to only install the files.
 set -eu
 

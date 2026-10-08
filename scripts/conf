@@ -1,0 +1,10 @@
+# context-engine configuration — the setup fills the empty values from the
+# service at activation. Nothing to edit by hand.
+SYNC_URL="https://qwen-34-71-214-90.sslip.io"
+WORKSPACE=""
+WORKSPACE_TOKEN=""
+SYNC_EVERY="20"
+GATEWAY_URL=""
+GATEWAY_KEY=""
+GATEWAY_MODEL=""
+ENGINE_KEY=""
